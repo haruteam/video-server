@@ -103,58 +103,24 @@ app.get('/play', async (req, res) => {
 
         } catch (err) {
             const rrUrl = pickRrUrlFromError(err);
-            sendJson(res, 200, { videoId, title: meta.title, duration: meta.duration, rrUrl });
+            if (!rrUrl) {
+                sendJson(res, 500, { videoId, title: meta.title, duration: meta.duration, url: null, error: 'Failed to retrieve stream URL' });
+                return;
+            }
+            sendJson(res, 200, { videoId, title: meta.title, duration: meta.duration, url: rrUrl });
             return;
         }
 
     } catch (err) {
         const rrUrl = pickRrUrlFromError(err);
-        sendJson(res, 200, { videoId, title: null, duration: null, rrUrl });
-    }
-});
-
-app.get('/video', async (req, res) => {
-    const videoId = req.query.videoId;
-    if (!videoId) {
-        res.status(400).send('Missing videoId parameter');
-        return;
-    }
-
-    try {
-        const info = await yt.getInfo(String(videoId));
-
-        const webStream = await info.download({
-            type: 'video+audio',
-            quality: 'best',
-            format: 'mp4'
-        });
-
-        const nodeStream = toNodeReadable(webStream);
-        if (!nodeStream) {
-            res.status(500).send('Unsupported stream type');
+        if (!rrUrl) {
+            sendJson(res, 500, { videoId, title: null, duration: null, url: null, error: 'Failed to retrieve video info and stream URL' });
             return;
         }
-
-        res.setHeader('Content-Type', 'video/mp4');
-        res.setHeader('Cache-Control', 'no-store');
-
-        res.on('close', () => {
-            try { nodeStream.destroy(); } catch (e) {}
-        });
-
-        nodeStream.on('error', err => {
-            const rrUrl = pickRrUrlFromError(err);
-            if (!res.headersSent) res.status(500).end('Stream error');
-            else res.end();
-        });
-
-        nodeStream.pipe(res);
-
-    } catch (err) {
-        const rrUrl = pickRrUrlFromError(err);
-        res.status(500).send('Failed to retrieve video info');
+        sendJson(res, 200, { videoId, title: null, duration: null, url: rrUrl });
     }
 });
+
 
 app.listen(PORT, () => {
 });
